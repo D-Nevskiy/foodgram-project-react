@@ -6,6 +6,8 @@ from recipes.models import Recipe, Tag, Ingredient, RecipeIngredient, \
     ShoppingCart, Favorite
 from djoser.serializers import UserCreateSerializer, UserSerializer
 from api.backends import EmailBackend
+from django.db import transaction
+from django.shortcuts import get_object_or_404
 
 
 class UsersCreateSerializer(UserCreateSerializer):
@@ -32,8 +34,7 @@ class UsersSerializer(UserSerializer):
         user = self.context.get('request').user
         if user.is_anonymous:
             return False
-        return Subscription.objects.filter(user=user,
-                                           author=object.id).exists()
+        return object.id in self.context['subscriptions']
 
 
 class RecipeMinifiedSerializer(serializers.ModelSerializer):
@@ -45,14 +46,12 @@ class RecipeMinifiedSerializer(serializers.ModelSerializer):
             'id', 'name', 'image', 'cooking_time']
 
 
-class UserWithRecipes(serializers.ModelSerializer):
+class UserWithRecipes(UsersSerializer):
     """Сериализатор для работы с подписками."""
     recipes = RecipeMinifiedSerializer(many=True)
 
-    class Meta:
-        model = User
-        fields = ['email', 'id', 'username', 'first_name', 'last_name',
-                  'is_subscribed', 'recipes', 'recipes_count']
+    class Meta(UsersSerializer.Meta):
+        fields = UsersSerializer.Meta.fields + ['recipes', 'recipes_count']
         pagination_class = PageNumberPagination
 
 
@@ -112,6 +111,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             'id', 'tags', 'author', 'ingredients',
             'name', 'image', 'text', 'cooking_time']
 
+    @transaction.atomic()
     def create(self, validated_data):
         user = self.context.get('request').user
         tags = validated_data.pop('tags')
@@ -128,6 +128,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
         return recipe
 
+    @transaction.atomic()
     def update(self, instance, validated_data):
         instance.image = validated_data.get('image', instance.image)
         instance.name = validated_data.get('name', instance.name)
@@ -151,7 +152,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         context = {'request': self.context.get('request')}
-        return GetRecipeSerializer(instance, context=context).data
+        return GetRecipeSerializer(instance, context=self.context).data
 
 
 class GetRecipeSerializer(serializers.ModelSerializer):
@@ -173,23 +174,57 @@ class GetRecipeSerializer(serializers.ModelSerializer):
         user = self.context.get('request').user
         if user.is_anonymous:
             return False
-        return Favorite.objects.filter(user=user, recipe=object).exists()
+        return object.id in self.context['favorites']
 
     def get_is_in_shopping_cart(self, object):
         user = self.context.get('request').user
         if user.is_anonymous:
             return False
-        return ShoppingCart.objects.filter(user=user, recipe=object).exists()
+        return object.id in self.context['shopping']
+
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     """Сериализатор для работы с подписками."""
     author = UserWithRecipes(read_only=True)
-    user = UserWithRecipes()
 
     class Meta:
         model = Subscription
-        fields = ['user', 'author']
+        fields = ['author']
+
+    def validate(self, attrs):
+        author = self.initial_data.get('author')
+        user = self.context.get('request').user
+        method = self.context.get('request').method
+        subscription = self.initial_data.get('subscription')
+        if user == author:
+            raise serializers.ValidationError(
+                'Нельзя подписаться или отписаться от себя!')
+        if method == 'POST':
+            if subscription.exists():
+                raise serializers.ValidationError(
+                    'Вы уже подписаны на этого автора')
+            attrs['author'] = author
+            return attrs
+        if method == 'DELETE':
+            if not subscription.exists():
+                raise serializers.ValidationError(
+                    'Вы не подписаны на этого пользователя')
+            attrs['author'] = author
+            return attrs
+
+    @transaction.atomic()
+    def create(self, validated_data):
+        user = self.context['request'].user
+        author = validated_data['author']
+        subscription = Subscription.objects.create(user=user, author=author)
+        return subscription
+
+    def delete(self, instance):
+        instance.delete()
+
+    def to_representation(self, instance):
+        return UserWithRecipes(instance.author, context=self.context).data
 
 
 class CustomAuthTokenSerializer(serializers.Serializer):
@@ -225,14 +260,77 @@ class CustomAuthTokenSerializer(serializers.Serializer):
 
 class FavoriteSerializer(serializers.ModelSerializer):
     """Сериализатор для работы с избранными рецептами."""
+    recipe = RecipeMinifiedSerializer(read_only=True)
 
     class Meta:
         model = Favorite
-        fields = ['user', 'recipe']
+        fields = ['recipe']
+
+    def validate(self, attrs):
+        recipe = self.initial_data.get('recipe')
+        method = self.context.get('request').method
+        favorites = self.initial_data.get('favorites')
+        if method == 'POST':
+            if favorites.exists():
+                raise serializers.ValidationError(
+                    'Рецепт уже добавлен в избранное!')
+            attrs['recipe'] = recipe
+            return attrs
+        if method == 'DELETE':
+            if not favorites.exists():
+                raise serializers.ValidationError(
+                    'Рецепта нет в избранном!')
+            attrs['recipe'] = recipe
+            return attrs
+
+    @transaction.atomic()
+    def create(self, validated_data):
+        user = self.context['request'].user
+        recipe = validated_data['recipe']
+        favorite = Favorite.objects.create(user=user, recipe=recipe)
+        return favorite
+
+    def delete(self, instance):
+        instance.delete()
+
+    def to_representation(self, instance):
+        return RecipeMinifiedSerializer(instance.recipe, context=self.context).data
 
 
 class ShoppingCartSerializer(FavoriteSerializer):
-    """Сериализатор для работы со списком покупок."""
+    """Сериализатор для работы с избранными рецептами."""
+    recipe = RecipeMinifiedSerializer(read_only=True)
 
-    class Meta(FavoriteSerializer.Meta):
-        model = ShoppingCart
+    class Meta:
+        model = Favorite
+        fields = ['recipe']
+
+    def validate(self, attrs):
+        recipe = self.initial_data.get('recipe')
+        method = self.context.get('request').method
+        shopping = self.initial_data.get('shopping')
+        if method == 'POST':
+            if shopping.exists():
+                raise serializers.ValidationError(
+                    'Рецепт уже добавлен в список покупок!')
+            attrs['recipe'] = recipe
+            return attrs
+        if method == 'DELETE':
+            if not shopping.exists():
+                raise serializers.ValidationError(
+                    'Рецепта нет в списке покупок!')
+            attrs['recipe'] = recipe
+            return attrs
+
+    @transaction.atomic()
+    def create(self, validated_data):
+        user = self.context['request'].user
+        recipe = validated_data['recipe']
+        shopping = ShoppingCart.objects.create(user=user, recipe=recipe)
+        return shopping
+
+    def delete(self, instance):
+        instance.delete()
+
+    def to_representation(self, instance):
+        return RecipeMinifiedSerializer(instance.recipe, context=self.context).data

@@ -28,7 +28,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
-    'django_filters'
     'djoser',
     'recipes',
     'api',
@@ -136,12 +135,9 @@ DJOSER = {
         'user_create': 'api.serializers.UsersCreateSerializer',
         'current_user': 'api.serializers.UsersSerializer',
     },
-    'VIEW_SET': 'djoser.views.UserViewSet',
     'PERMISSIONS': {
-        'user': ['rest_framework.permissions.IsAuthenticated'],
         'user_list': ['rest_framework.permissions.AllowAny'],
     },
-
 }
 
 AUTHENTICATION_BACKENDS = ['api.backends.EmailBackend',
