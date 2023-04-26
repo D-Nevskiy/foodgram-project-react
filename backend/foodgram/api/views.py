@@ -125,7 +125,6 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
     def subscriptions(self, request):
         user = request.user
         authors = User.objects.filter(following__user=user)
-        print(authors)
         page = self.paginate_queryset(authors)
         serializer = UserWithRecipes(
             page, many=True,
@@ -206,7 +205,6 @@ class ShoppingCartViewSet(viewsets.ModelViewSet):
         recipe = get_object_or_404(Recipe, pk=recipe_id)
         user = request.user
         shopping = ShoppingCart.objects.filter(user=user, recipe=recipe)
-        print(shopping)
         serializer = ShoppingCartSerializer(
             data={'recipe': recipe, 'shopping': shopping},
             context={'request': request})
