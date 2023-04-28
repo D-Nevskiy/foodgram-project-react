@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,21 +19,26 @@ from reportlab.pdfbase import pdfmetrics, ttfonts
 from reportlab.pdfgen import canvas
 from .permissions import IsAuthorOrReadOnly, \
     IsAuthenticatedOrReadOnlyListRetrieve
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
+from .filters import IngredientFilter, RecipeFilter
+
 
 
 class CustomUserViewSet(UserViewSet):
     """Вьюсет для работы с пользователями."""
-    queryset = User.objects.all().order_by('id')
+    queryset = User.objects.all()
     serializer_class = UsersSerializer
-    permission_classes = [IsAuthenticatedOrReadOnlyListRetrieve, ]
+    permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        subscriptions = set(
-            Subscription.objects.filter(user_id=self.request.user).values_list(
-                'author_id', flat=True))
-        context['subscriptions'] = subscriptions
+        if self.request.user.is_authenticated:
+            subscriptions = set(
+                Subscription.objects.filter(
+                    user_id=self.request.user).values_list(
+                    'author_id', flat=True))
+            context['subscriptions'] = subscriptions
         return context
 
 
@@ -64,6 +70,8 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     pagination_class = None
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = IngredientFilter
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -78,21 +86,26 @@ class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
     permission_classes = [IsAuthorOrReadOnly]
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = RecipeFilter
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        subscriptions = set(
-            Subscription.objects.filter(user_id=self.request.user).values_list(
-                'author_id', flat=True))
-        favorites = set(
-            Favorite.objects.filter(user_id=self.request.user).values_list(
-                'recipe_id', flat=True))
-        shopping = set(
-            ShoppingCart.objects.filter(user_id=self.request.user).values_list(
-                'recipe_id', flat=True))
-        context['subscriptions'] = subscriptions
-        context['favorites'] = favorites
-        context['shopping'] = shopping
+        if self.request.user.is_authenticated:
+            subscriptions = set(
+                Subscription.objects.filter(
+                    user_id=self.request.user).values_list(
+                    'author_id', flat=True))
+            favorites = set(
+                Favorite.objects.filter(user_id=self.request.user).values_list(
+                    'recipe_id', flat=True))
+            shopping = set(
+                ShoppingCart.objects.filter(
+                    user_id=self.request.user).values_list(
+                    'recipe_id', flat=True))
+            context['subscriptions'] = subscriptions
+            context['favorites'] = favorites
+            context['shopping'] = shopping
         return context
 
 
@@ -167,13 +180,14 @@ class ShoppingCartViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
 
+    @action(methods=['GET'], detail=False)
     def list(self, request):
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = (
             "attachment; filename='shopping_cart.pdf'"
         )
         p = canvas.Canvas(response)
-        arial = ttfonts.TTFont('Arial', '../../data/arial.ttf')
+        arial = ttfonts.TTFont('Arial', 'data/arial.ttf')
         pdfmetrics.registerFont(arial)
         p.setFont('Arial', 14)
         p.drawString(100, 750, "Список покупок")
