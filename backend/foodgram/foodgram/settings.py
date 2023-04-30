@@ -13,7 +13,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', default='secret_key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['158.160.56.27','localhost','cookwithdanya.sytes.net']
+ALLOWED_HOSTS = ['158.160.56.27', 'localhost', 'cookwithdanya.sytes.net']
 
 AUTH_USER_MODEL = 'users.User'
 # Application definition
@@ -69,7 +69,8 @@ WSGI_APPLICATION = 'foodgram.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', default='django.db.backends.postgresql'),
+        'ENGINE': os.getenv('DB_ENGINE',
+                            default='django.db.backends.postgresql'),
         'NAME': os.getenv('DB_NAME', default='postgres'),
         'USER': os.getenv('POSTGRES_USER', default='postgres'),
         'PASSWORD': os.getenv('POSTGRES_PASSWORD', default='postgres'),
