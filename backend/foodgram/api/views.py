@@ -24,7 +24,6 @@ from rest_framework.permissions import (IsAuthenticated,
 from .filters import IngredientFilter, RecipeFilter
 
 
-
 class CustomUserViewSet(UserViewSet):
     """Вьюсет для работы с пользователями."""
     queryset = User.objects.all()
@@ -32,14 +31,13 @@ class CustomUserViewSet(UserViewSet):
     permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def get_serializer_context(self):
-        context = super().get_serializer_context()
-        if self.request.user.is_authenticated:
-            subscriptions = set(
-                Subscription.objects.filter(
-                    user_id=self.request.user).values_list(
-                    'author_id', flat=True))
-            context['subscriptions'] = subscriptions
-        return context
+        return {
+            'request': self.request,
+            'format': self.format_kwarg,
+            'view': self,
+            'subscriptions': set(Subscription.objects.filter(
+                user_id=self.request.user).values_list('author_id', flat=True))
+        }
 
 
 class CustomObtainAuthToken(ObtainAuthToken):

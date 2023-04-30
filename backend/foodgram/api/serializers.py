@@ -35,8 +35,7 @@ class UsersSerializer(UserSerializer):
         user = self.context.get('request').user
         if user.is_anonymous:
             return False
-        return Subscription.objects.filter(user=user,
-                                           author=object.id).exists()
+        return object.id in self.context.get('subscriptions')
 
 
 class RecipeMinifiedSerializer(serializers.ModelSerializer):
@@ -53,7 +52,8 @@ class UserWithRecipes(UsersSerializer):
     recipes = RecipeMinifiedSerializer(many=True)
 
     class Meta(UsersSerializer.Meta):
-        fields = UsersSerializer.Meta.fields + ['recipes', 'recipes_count']
+        fields = ['email', 'id', 'username', 'first_name', 'last_name',
+                  'recipes', 'recipes_count']
         pagination_class = PageNumberPagination
 
 
@@ -187,13 +187,13 @@ class GetRecipeSerializer(serializers.ModelSerializer):
         user = self.context.get('request').user
         if user.is_anonymous:
             return False
-        return object.id in self.context['favorites']
+        return object.id in self.context.get('favorites')
 
     def get_is_in_shopping_cart(self, object):
         user = self.context.get('request').user
         if user.is_anonymous:
             return False
-        return object.id in self.context['shopping']
+        return object.id in self.context.get('shopping')
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
