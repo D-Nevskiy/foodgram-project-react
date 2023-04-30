@@ -40,6 +40,6 @@ jobs:
         with:
           context: ./backend/
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/foodgram_backend:v1.0
+          tags: ${{ secrets.DOCKER_USERNAME }}/foodgram_backend:v1.
 
 
