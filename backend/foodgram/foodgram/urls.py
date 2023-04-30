@@ -1,6 +1,6 @@
+from api.views import CustomObtainAuthToken, LogoutView
 from django.contrib import admin
 from django.urls import include, path
-from api.views import CustomObtainAuthToken, LogoutView
 
 urlpatterns = [
     path('admin/', admin.site.urls),

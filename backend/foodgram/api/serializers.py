@@ -1,14 +1,15 @@
-from django.core.files.base import ContentFile
 import base64
+
+from api.backends import EmailBackend
+from django.core.files.base import ContentFile
+from django.db import transaction
+from djoser.serializers import UserCreateSerializer, UserSerializer
+from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
+                            ShoppingCart, Tag)
 from rest_framework import serializers
 from rest_framework.fields import SerializerMethodField
 from rest_framework.pagination import PageNumberPagination
-from users.models import User, Subscription
-from recipes.models import Recipe, Tag, Ingredient, RecipeIngredient, \
-    ShoppingCart, Favorite
-from djoser.serializers import UserCreateSerializer, UserSerializer
-from api.backends import EmailBackend
-from django.db import transaction
+from users.models import Subscription, User
 
 
 class UsersCreateSerializer(UserCreateSerializer):
@@ -164,7 +165,6 @@ class RecipeSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
-        context = {'request': self.context.get('request')}
         return GetRecipeSerializer(instance, context=self.context).data
 
 
@@ -224,13 +224,13 @@ class SubscriptionSerializer(serializers.ModelSerializer):
                     'Вы не подписаны на этого пользователя')
             attrs['author'] = author
             return attrs
+        return attrs
 
     @transaction.atomic()
     def create(self, validated_data):
         user = self.context['request'].user
         author = validated_data['author']
-        subscription = Subscription.objects.create(user=user, author=author)
-        return subscription
+        return Subscription.objects.create(user=user, author=author)
 
     def delete(self, instance):
         instance.delete()
@@ -288,19 +288,19 @@ class FavoriteSerializer(serializers.ModelSerializer):
                     'Рецепт уже добавлен в избранное!')
             attrs['recipe'] = recipe
             return attrs
-        if method == 'DELETE':
+        elif method == 'DELETE':
             if not favorites.exists():
                 raise serializers.ValidationError(
                     'Рецепта нет в избранном!')
             attrs['recipe'] = recipe
             return attrs
+        return attrs
 
     @transaction.atomic()
     def create(self, validated_data):
         user = self.context['request'].user
         recipe = validated_data['recipe']
-        favorite = Favorite.objects.create(user=user, recipe=recipe)
-        return favorite
+        return Favorite.objects.create(user=user, recipe=recipe)
 
     def delete(self, instance):
         return instance.delete()
@@ -330,13 +330,13 @@ class ShoppingCartSerializer(FavoriteSerializer):
                     'Рецепта нет в списке покупок!')
             attrs['recipe'] = recipe
             return attrs
+        return attrs
 
     @transaction.atomic()
     def create(self, validated_data):
         user = self.context['request'].user
         recipe = validated_data['recipe']
-        shopping = ShoppingCart.objects.create(user=user, recipe=recipe)
-        return shopping
+        return ShoppingCart.objects.create(user=user, recipe=recipe)
 
     def delete(self, instance):
         instance.delete()

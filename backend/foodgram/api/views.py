@@ -1,27 +1,28 @@
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from djoser.views import UserViewSet
-from users.models import User, Subscription
-from recipes.models import Tag, Recipe, Ingredient, Favorite, ShoppingCart, \
-    RecipeIngredient
-from .serializers import CustomAuthTokenSerializer, TagSerializer, \
-    RecipeSerializer, IngredientSerializer, UsersSerializer, UserWithRecipes, \
-    SubscriptionSerializer, ShoppingCartSerializer, FavoriteSerializer
-from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.authtoken.models import Token
-from rest_framework.views import APIView
-from rest_framework.authentication import TokenAuthentication
-from django.http import HttpResponse
+from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
+                            ShoppingCart, Tag)
 from reportlab.pdfbase import pdfmetrics, ttfonts
 from reportlab.pdfgen import canvas
-from .permissions import IsAuthorOrReadOnly, \
-    IsAuthenticatedOrReadOnlyListRetrieve
+from rest_framework import status, viewsets
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.decorators import action
 from rest_framework.permissions import (IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from users.models import Subscription, User
+
 from .filters import IngredientFilter, RecipeFilter
+from .permissions import IsAuthorOrReadOnly
+from .serializers import (CustomAuthTokenSerializer, FavoriteSerializer,
+                          IngredientSerializer, RecipeSerializer,
+                          ShoppingCartSerializer, SubscriptionSerializer,
+                          TagSerializer, UsersSerializer, UserWithRecipes)
 
 
 class CustomUserViewSet(UserViewSet):
